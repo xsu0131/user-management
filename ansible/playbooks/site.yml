@@ -22,3 +22,9 @@
   become: true
   roles:
     - frontend
+
+- name: Configure Jenkins
+  hosts: jenkins
+  become: true
+  roles:
+    - jenkins
