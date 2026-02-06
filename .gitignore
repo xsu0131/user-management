@@ -67,4 +67,3 @@ user-management-backend/application-prod.properties
 user-management-frontend/node_modules/
 user-management-frontend/dist/
 user-management-frontend/.env
-infra/jenkins/.terraform/providers/registry.terraform.io/hashicorp/aws/6.31.0/darwin_arm64/terraform-provider-aws_v6.31.0_x5
