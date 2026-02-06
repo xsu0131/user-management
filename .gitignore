@@ -1,0 +1,69 @@
+##################################
+# OS / Editor
+##################################
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+##################################
+# Python / Virtualenv
+##################################
+.venv/
+__pycache__/
+
+##################################
+# Ansible (SENSITIVE)
+##################################
+ansible/inventory/
+ansible/inventory.ini
+ansible/hosts
+ansible/*.retry
+ansible/**/*.retry
+ansible/vault.yml
+ansible/vault.yaml
+ansible/group_vars/**/secrets.yml
+ansible/host_vars/**/secrets.yml
+
+##################################
+# SSH / Keys
+##################################
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+.ssh/
+
+##################################
+# Terraform (SENSITIVE)
+##################################
+infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl
+infra/terraform/terraform.tfstate
+infra/terraform/terraform.tfstate.backup
+infra/terraform/*.tfvars
+infra/terraform/*.auto.tfvars
+
+##################################
+# Jenkins
+##################################
+jenkins/secrets/
+jenkins/credentials/
+jenkins/*.key
+jenkins/*.env
+
+##################################
+# Backend
+##################################
+user-management-backend/target/
+user-management-backend/.env
+user-management-backend/application-prod.yml
+user-management-backend/application-prod.properties
+
+##################################
+# Frontend
+##################################
+user-management-frontend/node_modules/
+user-management-frontend/dist/
+user-management-frontend/.env
