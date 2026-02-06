@@ -1,0 +1,57 @@
+---
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+
+- name: Ensure nginx is running
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
+
+- name: Create web root
+  ansible.builtin.file:
+    path: "{{ frontend_root }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+
+- name: Create nginx site
+  ansible.builtin.copy:
+    dest: /etc/nginx/sites-available/{{ nginx_site_name }}
+    content: |
+      server {
+        listen 80;
+        server_name _;
+        root {{ frontend_root }};
+        index index.html;
+
+        location / {
+          try_files $uri $uri/ /index.html;
+        }
+
+        # Optional: proxy API if you want /api -> backend:8080
+        location /api/ {
+          proxy_pass http://{{ hostvars['backend1']['ansible_default_ipv4']['address'] }}:8080/;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+        }
+      }
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Enable nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/{{ nginx_site_name }}
+    dest: /etc/nginx/sites-enabled/{{ nginx_site_name }}
+    state: link
+  notify: Reload nginx
+
+- name: Disable default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx

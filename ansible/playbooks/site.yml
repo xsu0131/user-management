@@ -1,0 +1,24 @@
+---
+- name: Common bootstrap on all hosts
+  hosts: all
+  become: true
+  roles:
+    - common
+
+- name: Configure database
+  hosts: db
+  become: true
+  roles:
+    - db
+
+- name: Configure backend
+  hosts: backend
+  become: true
+  roles:
+    - backend
+
+- name: Configure frontend
+  hosts: frontend
+  become: true
+  roles:
+    - frontend
