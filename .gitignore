@@ -27,7 +27,7 @@ ansible/group_vars/**/secrets.yml
 ansible/host_vars/**/secrets.yml
 
 ##################################
-# SSH / Keys
+# SSH / Keys (CRITICAL)
 ##################################
 *.pem
 *.key
@@ -38,12 +38,12 @@ id_rsa.pub
 ##################################
 # Terraform (SENSITIVE)
 ##################################
-infra/terraform/.terraform/
-infra/terraform/.terraform.lock.hcl
-infra/terraform/terraform.tfstate
-infra/terraform/terraform.tfstate.backup
-infra/terraform/*.tfvars
-infra/terraform/*.auto.tfvars
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.auto.tfvars
+
 
 ##################################
 # Jenkins
@@ -54,16 +54,23 @@ jenkins/*.key
 jenkins/*.env
 
 ##################################
-# Backend
+# Backend (Spring / Java)
 ##################################
-user-management-backend/target/
-user-management-backend/.env
-user-management-backend/application-prod.yml
-user-management-backend/application-prod.properties
+**/target/
+**/.env
+**/application-prod.yml
+**/application-prod.properties
 
 ##################################
-# Frontend
+# Frontend (Node / Angular / React)
 ##################################
-user-management-frontend/node_modules/
-user-management-frontend/dist/
-user-management-frontend/.env
+**/node_modules/
+**/dist/
+**/.env
+
+##################################
+# Logs / temp
+##################################
+*.log
+*.retry
+infra/terraform/.terraform.lock.hcl
