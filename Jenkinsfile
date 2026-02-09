@@ -7,17 +7,20 @@ pipeline {
 
   stages {
 
+    /* ===============================
+       Checkout source code
+       =============================== */
     stage('Checkout') {
       steps {
-        git branch: 'Backend-Testing', url: 'https://github.com/xsu0131/user-management.git'
+        git branch: 'Backend-Testing',
+            url: 'https://github.com/xsu0131/user-management.git'
       }
     }
 
+    /* ===============================
+       Build Spring Boot backend
+       =============================== */
     stage('Build Backend') {
-      environment {
-        JAVA_HOME = '/usr/lib/jvm/java-21-openjdk-amd64'
-        PATH = "${JAVA_HOME}/bin:${env.PATH}"
-      }
       steps {
         sh '''
           echo "=== Java toolchain check ==="
@@ -32,6 +35,10 @@ pipeline {
       }
     }
 
+    /* ===============================
+       Generate Ansible inventory
+       (NOT committed to Git)
+       =============================== */
     stage('Generate Ansible Inventory') {
       steps {
         sh '''
@@ -58,6 +65,9 @@ EOF
       }
     }
 
+    /* ===============================
+       Deploy backend using Ansible
+       =============================== */
     stage('Deploy Backend') {
       steps {
         withCredentials([
@@ -69,16 +79,15 @@ EOF
           sh '''
             chmod 600 "$SSH_KEY"
 
+            # Resolve the built JAR from Jenkins workspace
+            JAR_PATH=$(ls $WORKSPACE/user-management-backend/target/*.jar | head -n 1)
+            echo "Using backend jar: $JAR_PATH"
+
             cd ansible
             ansible-playbook playbooks/site.yml \
               --limit backend \
               --private-key "$SSH_KEY" \
-              JAR_PATH=$(ls $WORKSPACE/user-management-backend/target/*.jar | head -n 1)
-
-              ansible-playbook playbooks/site.yml \
-                --limit backend \
-                --private-key "$SSH_KEY" \
-                -e backend_jar_path="$JAR_PATH"
+              -e backend_jar_path="$JAR_PATH"
           '''
         }
       }
@@ -87,7 +96,7 @@ EOF
 
   post {
     success {
-      echo ' Backend build and deployment successful'
+      echo ' Backend build + deployment successful'
     }
     failure {
       echo ' Backend pipeline failed'
