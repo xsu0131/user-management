@@ -3,6 +3,8 @@ pipeline {
 
   environment {
     ANSIBLE_HOST_KEY_CHECKING = 'False'
+    JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
+    PATH = "${JAVA_HOME}/bin:${env.PATH}"
   }
 
   stages {
