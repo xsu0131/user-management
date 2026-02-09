@@ -1,56 +1,64 @@
 ---
+# =========================
+# Backend role – tasks
+# =========================
+
+- name: Ensure apt cache is up to date
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
 - name: Install Java 21
-  ansible.builtin.apt:
+  apt:
     name: openjdk-21-jdk
     state: present
-    update_cache: true
 
-- name: Create app directory
-  ansible.builtin.file:
-    path: /opt/user-management
+- name: Create backend application directory
+  file:
+    path: /opt/backend
     state: directory
     owner: ubuntu
     group: ubuntu
-    mode: "0755"
+    mode: '0755'
 
-# For now we assume you will SCP the jar to the backend box.
-# Later we’ll make Jenkins publish it automatically.
-- name: Placeholder - ensure jar exists (will fail until you upload jar)
-  ansible.builtin.stat:
-    path: "{{ backend_jar_path }}"
-  register: backend_jar_stat
-
-- name: Print message if jar missing
-  ansible.builtin.debug:
-    msg: "Upload your backend jar to {{ backend_jar_path }} (we’ll automate via Jenkins next)."
-  when: not backend_jar_stat.stat.exists
+# Jenkins will pass backend_jar_path like:
+# -e backend_jar_path=../user-management-backend/target/*.jar
+- name: Copy backend JAR from Jenkins workspace
+  copy:
+    src: "{{ backend_jar_path }}"
+    dest: /opt/backend/app.jar
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
 
 - name: Create systemd service for backend
-  ansible.builtin.copy:
-    dest: /etc/systemd/system/{{ backend_service_name }}.service
-    mode: "0644"
+  copy:
+    dest: /etc/systemd/system/backend.service
     content: |
       [Unit]
-      Description=User Management Backend
+      Description=Spring Boot Backend Service
       After=network.target
 
       [Service]
-      Type=simple
       User=ubuntu
-      WorkingDirectory=/opt/user-management
-      ExecStart=/usr/bin/java -jar {{ backend_jar_path }}
+      WorkingDirectory=/opt/backend
+      ExecStart=/usr/bin/java -jar /opt/backend/app.jar
       Restart=always
       RestartSec=5
-      Environment=SPRING_DATASOURCE_URL=jdbc:mysql://{{ hostvars['db1']['ansible_default_ipv4']['address'] }}:3306/{{ mysql_db }}
-      Environment=SPRING_DATASOURCE_USERNAME={{ mysql_user }}
-      Environment=SPRING_DATASOURCE_PASSWORD={{ mysql_password }}
+      SuccessExitStatus=143
 
       [Install]
       WantedBy=multi-user.target
-  notify: Restart backend
+
+- name: Reload systemd daemon
+  command: systemctl daemon-reexec
 
 - name: Enable backend service
-  ansible.builtin.systemd:
-    name: "{{ backend_service_name }}"
-    enabled: true
-    daemon_reload: true
+  systemd:
+    name: backend
+    enabled: yes
+
+- name: Restart backend service
+  systemd:
+    name: backend
+    state: restarted
