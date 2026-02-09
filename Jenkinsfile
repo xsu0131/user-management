@@ -9,7 +9,7 @@ pipeline {
 
     stage('Checkout') {
       steps {
-        git branch: 'main', url: 'https://github.com/xsu0131/user-management.git'
+        git branch: 'Backend-Testing', url: 'https://github.com/xsu0131/user-management.git'
       }
     }
 
