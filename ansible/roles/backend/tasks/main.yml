@@ -21,9 +21,9 @@
     group: ubuntu
     mode: '0755'
 
-# Jenkins will pass backend_jar_path like:
+# Jenkins passes:
 # -e backend_jar_path=../user-management-backend/target/*.jar
-- name: Copy backend JAR from Jenkins workspace
+- name: Copy backend JAR
   copy:
     src: "{{ backend_jar_path }}"
     dest: /opt/backend/app.jar
@@ -36,7 +36,7 @@
     dest: /etc/systemd/system/backend.service
     content: |
       [Unit]
-      Description=Spring Boot Backend Service
+      Description=Spring Boot Backend
       After=network.target
 
       [Service]
@@ -50,7 +50,7 @@
       [Install]
       WantedBy=multi-user.target
 
-- name: Reload systemd daemon
+- name: Reload systemd
   command: systemctl daemon-reexec
 
 - name: Enable backend service
