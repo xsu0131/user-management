@@ -13,6 +13,33 @@ pipeline {
       }
     }
 
+    stage('Generate Ansible Inventory') {
+      steps {
+        sh '''
+          cd ansible
+          mkdir -p inventory
+
+          cat > inventory/inventory.ini <<EOF
+[jenkins]
+jenkins1 ansible_host=35.87.104.222
+
+[frontend]
+frontend1 ansible_host=35.167.2.22
+
+[backend]
+backend1 ansible_host=54.184.29.2
+
+[db]
+db1 ansible_host=44.249.35.75
+
+[all:vars]
+ansible_user=ubuntu
+ansible_ssh_private_key_file=~/.ssh/project1u.pem
+EOF
+        '''
+      }
+    }
+
     stage('Deploy Backend') {
       steps {
         sh '''
