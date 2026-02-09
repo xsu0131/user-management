@@ -12,3 +12,9 @@ variable "key_name" {
   description = "EC2 key pair name"
   type        = string
 }
+
+variable "name_prefix" {
+  description = "Prefix for resource names"
+  type        = string
+  default     = "jenkins"
+}
