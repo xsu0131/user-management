@@ -14,8 +14,18 @@ pipeline {
     }
 
     stage('Build Backend') {
+      environment {
+        JAVA_HOME = '/usr/lib/jvm/java-21-openjdk-amd64'
+        PATH = "${JAVA_HOME}/bin:${env.PATH}"
+      }
       steps {
         sh '''
+          echo "=== Java toolchain check ==="
+          java -version
+          javac -version
+          mvn -v
+
+          echo "=== Building backend ==="
           cd user-management-backend
           mvn clean package -DskipTests
         '''
@@ -72,7 +82,7 @@ EOF
 
   post {
     success {
-      echo ' Backend build + deployment successful'
+      echo ' Backend build and deployment successful'
     }
     failure {
       echo ' Backend pipeline failed'
