@@ -73,7 +73,7 @@ EOF
             ansible-playbook playbooks/site.yml \
               --limit backend \
               --private-key "$SSH_KEY" \
-              -e backend_jar_path=../user-management-backend/target/*.jar
+              -e backend_jar_path=$WORKSPACE/user-management-backend/target/*.jar
           '''
         }
       }
