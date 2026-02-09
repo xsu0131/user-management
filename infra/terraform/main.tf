@@ -23,12 +23,12 @@ variable "name_prefix" {
 }
 
 variable "admin_cidr" {
-  description = "Your public IP in CIDR notation for SSH (e.g. 1.2.3.4/32)"
+  description = "Your public IP in CIDR notation (x.x.x.x/32)"
   type        = string
 }
 
 variable "key_name" {
-  description = "Existing EC2 key pair name (not the .pem filename)"
+  description = "Existing EC2 key pair name"
   type        = string
   default     = "project1u"
 }
@@ -43,11 +43,11 @@ provider "aws" {
 }
 
 ########################
-# AMI (Ubuntu 22.04 LTS)
+# AMI (Ubuntu 22.04)
 ########################
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical
+  owners      = ["099720109477"]
 
   filter {
     name   = "name"
@@ -61,36 +61,28 @@ data "aws_ami" "ubuntu" {
 }
 
 ########################
-# Networking (All Public)
+# Networking
 ########################
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
-  enable_dns_hostnames = true
   enable_dns_support   = true
+  enable_dns_hostnames = true
 
-  tags = {
-    Name = "${var.name_prefix}-vpc"
-  }
+  tags = { Name = "${var.name_prefix}-vpc" }
 }
 
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
-
-  tags = {
-    Name = "${var.name_prefix}-igw"
-  }
+  tags   = { Name = "${var.name_prefix}-igw" }
 }
 
-# One public subnet is enough for Option A (simple lab)
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
   availability_zone       = "${var.region}a"
   map_public_ip_on_launch = true
 
-  tags = {
-    Name = "${var.name_prefix}-public-subnet"
-  }
+  tags = { Name = "${var.name_prefix}-public-subnet" }
 }
 
 resource "aws_route_table" "public" {
@@ -101,9 +93,7 @@ resource "aws_route_table" "public" {
     gateway_id = aws_internet_gateway.igw.id
   }
 
-  tags = {
-    Name = "${var.name_prefix}-public-rt"
-  }
+  tags = { Name = "${var.name_prefix}-public-rt" }
 }
 
 resource "aws_route_table_association" "public_assoc" {
@@ -115,11 +105,14 @@ resource "aws_route_table_association" "public_assoc" {
 # Security Groups
 ########################
 
-# Frontend: 80/443 public + SSH from your IP
+# EC2 Instance Connect IPs (us-west-2)
+locals {
+  ec2_instance_connect_cidr = "18.206.107.24/29"
+}
+
 resource "aws_security_group" "frontend" {
-  name        = "${var.name_prefix}-frontend-sg"
-  description = "Frontend SG"
-  vpc_id      = aws_vpc.main.id
+  name   = "${var.name_prefix}-frontend-sg"
+  vpc_id = aws_vpc.main.id
 
   ingress {
     description = "HTTP"
@@ -137,42 +130,36 @@ resource "aws_security_group" "frontend" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Optional if you really need Angular dev server on EC2
   ingress {
-    description = "Angular dev server"
-    from_port   = 4200
-    to_port     = 4200
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "SSH (admin only)"
+    description = "SSH from admin IP"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = [var.admin_cidr]
   }
 
+  ingress {
+    description = "SSH from EC2 Instance Connect"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [local.ec2_instance_connect_cidr]
+  }
+
   egress {
-    description = "All outbound"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = { Name = "${var.name_prefix}-frontend-sg" }
 }
 
-# Backend: 8080 only from Frontend SG + SSH from your IP
 resource "aws_security_group" "backend" {
-  name        = "${var.name_prefix}-backend-sg"
-  description = "Backend SG"
-  vpc_id      = aws_vpc.main.id
+  name   = "${var.name_prefix}-backend-sg"
+  vpc_id = aws_vpc.main.id
 
   ingress {
-    description     = "Spring Boot 8080 from Frontend SG"
+    description     = "Spring Boot 8080 from frontend"
     from_port       = 8080
     to_port         = 8080
     protocol        = "tcp"
@@ -180,90 +167,111 @@ resource "aws_security_group" "backend" {
   }
 
   ingress {
-    description = "SSH (admin only)"
+    description = "SSH from admin IP"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = [var.admin_cidr]
   }
 
+  ingress {
+    description = "SSH from EC2 Instance Connect"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [local.ec2_instance_connect_cidr]
+  }
+
   egress {
-    description = "All outbound"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = { Name = "${var.name_prefix}-backend-sg" }
 }
 
-# DB: 3306 only from Backend SG (+ optional SSH from your IP)
 resource "aws_security_group" "db" {
-  name        = "${var.name_prefix}-db-sg"
-  description = "DB SG"
-  vpc_id      = aws_vpc.main.id
+  name   = "${var.name_prefix}-db-sg"
+  vpc_id = aws_vpc.main.id
 
   ingress {
-    description     = "MySQL 3306 from Backend SG"
+    description     = "MySQL from backend"
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"
     security_groups = [aws_security_group.backend.id]
   }
 
-  # Optional (handy for lab): SSH to DB from your IP
   ingress {
-    description = "SSH (admin only)"
+    description = "SSH from admin IP"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = [var.admin_cidr]
   }
 
+  ingress {
+    description = "SSH from EC2 Instance Connect"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [local.ec2_instance_connect_cidr]
+  }
+
   egress {
-    description = "All outbound"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = { Name = "${var.name_prefix}-db-sg" }
 }
 
 ########################
-# EC2 Instances (All Public)
+# EC2 Instances
 ########################
+locals {
+  ec2_user_data = <<-EOF
+    #!/bin/bash
+    apt-get update -y
+    apt-get install -y ec2-instance-connect
+  EOF
+}
+
 resource "aws_instance" "frontend" {
-  ami                         = data.aws_ami.ubuntu.id
-  instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [aws_security_group.frontend.id]
-  key_name                    = var.key_name
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = var.instance_type
+  subnet_id     = aws_subnet.public.id
+  key_name      = var.key_name
+
+  vpc_security_group_ids = [aws_security_group.frontend.id]
   associate_public_ip_address = true
+  user_data = local.ec2_user_data
 
   tags = { Name = "${var.name_prefix}-frontend" }
 }
 
 resource "aws_instance" "backend" {
-  ami                         = data.aws_ami.ubuntu.id
-  instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [aws_security_group.backend.id]
-  key_name                    = var.key_name
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = var.instance_type
+  subnet_id     = aws_subnet.public.id
+  key_name      = var.key_name
+
+  vpc_security_group_ids = [aws_security_group.backend.id]
   associate_public_ip_address = true
+  user_data = local.ec2_user_data
 
   tags = { Name = "${var.name_prefix}-backend" }
 }
 
 resource "aws_instance" "db" {
-  ami                         = data.aws_ami.ubuntu.id
-  instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [aws_security_group.db.id]
-  key_name                    = var.key_name
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = var.instance_type
+  subnet_id     = aws_subnet.public.id
+  key_name      = var.key_name
+
+  vpc_security_group_ids = [aws_security_group.db.id]
   associate_public_ip_address = true
+  user_data = local.ec2_user_data
 
   tags = { Name = "${var.name_prefix}-db" }
 }
