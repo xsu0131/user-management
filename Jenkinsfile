@@ -34,7 +34,6 @@ db1 ansible_host=44.249.35.75
 
 [all:vars]
 ansible_user=ubuntu
-ansible_ssh_private_key_file=~/.ssh/project1u.pem
 EOF
         '''
       }
@@ -42,10 +41,21 @@ EOF
 
     stage('Deploy Backend') {
       steps {
-        sh '''
-          cd ansible
-          ansible-playbook playbooks/site.yml --limit backend
-        '''
+        withCredentials([
+          sshUserPrivateKey(
+            credentialsId: 'ec2-ssh-key',
+            keyFileVariable: 'SSH_KEY'
+          )
+        ]) {
+          sh '''
+            chmod 600 "$SSH_KEY"
+
+            cd ansible
+            ansible-playbook playbooks/site.yml \
+              --limit backend \
+              --private-key "$SSH_KEY"
+          '''
+        }
       }
     }
   }
