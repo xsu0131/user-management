@@ -13,6 +13,15 @@ pipeline {
       }
     }
 
+    stage('Build Backend') {
+      steps {
+        sh '''
+          cd user-management-backend
+          mvn clean package -DskipTests
+        '''
+      }
+    }
+
     stage('Generate Ansible Inventory') {
       steps {
         sh '''
@@ -53,7 +62,8 @@ EOF
             cd ansible
             ansible-playbook playbooks/site.yml \
               --limit backend \
-              --private-key "$SSH_KEY"
+              --private-key "$SSH_KEY" \
+              -e backend_jar_path=../user-management-backend/target/*.jar
           '''
         }
       }
@@ -62,10 +72,10 @@ EOF
 
   post {
     success {
-      echo ' Backend deployment successful'
+      echo ' Backend build + deployment successful'
     }
     failure {
-      echo ' Backend deployment failed'
+      echo ' Backend pipeline failed'
     }
   }
 }
