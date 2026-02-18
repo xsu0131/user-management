@@ -14,4 +14,4 @@ key_name = "project1u"
 
 # Existing S3 bucket (only needed if you are still creating an app bucket)
 # If you're using this bucket ONLY for Terraform backend, you can remove this
-s3_bucket_name = "amzn-proj0129-syn-bucket"
+s3_bucket_name = "amzn-proj0131-syn-buckett"
