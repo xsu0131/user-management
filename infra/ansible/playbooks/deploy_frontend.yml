@@ -17,11 +17,27 @@
       debug:
         msg: "Backend server: {{ backend_server }}"
 
-    - name: Clear web root
-      shell: rm -rf {{ web_root }}/*
+    - name: Remove existing web root
+      file:
+        path: "{{ web_root }}"
+        state: absent
 
-    - name: Copy Angular files from browser folder
-      shell: cp -r {{ dist_source }}/* {{ web_root }}/
+    - name: Recreate web root
+      file:
+        path: "{{ web_root }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: Copy Angular files
+      copy:
+        src: "{{ dist_source }}/"
+        dest: "{{ web_root }}/"
+        owner: www-data
+        group: www-data
+        mode: "0755"
+        remote_src: yes
 
     - name: Set correct permissions
       file:
