@@ -30,7 +30,7 @@
         state: directory
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
-        mode: '0755'
+        mode: "0755"
 
     - name: Create logs directory
       file:
@@ -38,7 +38,7 @@
         state: directory
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
-        mode: '0755'
+        mode: "0755"
 
     - name: Stop existing application
       systemd:
@@ -59,7 +59,7 @@
         dest: "{{ app_dir }}/application.jar"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
-        mode: '0755'
+        mode: "0755"
         remote_src: yes
 
     - name: Create application.properties
@@ -67,7 +67,7 @@
         dest: "{{ app_dir }}/application.properties"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
-        mode: '0644'
+        mode: "0644"
         content: |
           # Database Configuration
           spring.datasource.url=jdbc:mysql://{{ database_ip }}:3306/users
@@ -128,7 +128,7 @@
     - name: Update systemd service to use external config
       copy:
         dest: /etc/systemd/system/springboot-app.service
-        mode: '0644'
+        mode: "0644"
         content: |
           [Unit]
           Description=Spring Boot Application
