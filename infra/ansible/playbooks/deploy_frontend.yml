@@ -1,0 +1,84 @@
+---
+- name: Deploy Angular Application
+  hosts: frontend
+  become: yes
+  
+  vars:
+    web_root: /var/www/html
+    dist_source: /tmp/angular-dist/browser
+    backend_ip: "{{ groups['backend'][0] }}"
+    
+  tasks:
+    - name: Get backend server IP
+      set_fact:
+        backend_server: "{{ backend_ip }}"
+    
+    - name: Display backend IP
+      debug:
+        msg: "Backend server: {{ backend_server }}"
+    
+    - name: Clear web root
+      shell: rm -rf {{ web_root }}/*
+    
+    - name: Copy Angular files from browser folder
+      shell: cp -r {{ dist_source }}/* {{ web_root }}/
+    
+    - name: Set correct permissions
+      file:
+        path: "{{ web_root }}"
+        owner: www-data
+        group: www-data
+        mode: '0755'
+        recurse: yes
+    
+    - name: Configure Nginx with API proxy
+      copy:
+        dest: /etc/nginx/sites-available/angular-app
+        content: |
+          server {
+              listen 80;
+              server_name _;
+              
+              root {{ web_root }};
+              index index.html;
+              
+              # Proxy API requests to backend
+              location /api/ {
+                  proxy_pass http://{{ backend_server }}:8080;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_cache_bypass $http_upgrade;
+              }
+              
+              # Angular routing
+              location / {
+                  try_files $uri $uri/ /index.html;
+              }
+          }
+      notify: Reload Nginx
+    
+    - name: Enable site
+      file:
+        src: /etc/nginx/sites-available/angular-app
+        dest: /etc/nginx/sites-enabled/angular-app
+        state: link
+      notify: Reload Nginx
+    
+    - name: Test Nginx config
+      command: nginx -t
+    
+    - name: Restart Nginx
+      systemd:
+        name: nginx
+        state: restarted
+  
+  handlers:
+    - name: Reload Nginx
+      systemd:
+        name: nginx
+        state: reloaded

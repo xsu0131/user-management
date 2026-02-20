@@ -1,0 +1,74 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven3'
+        jdk 'JDK17'
+    }
+
+    environment {
+        AWS_ACCESS_KEY = credentials('aws-access-key')
+        AWS_SECRET_KEY = credentials('aws-secret-key')
+        AWS_S3_BUCKET = 'user-management-s3-bucket-syn'
+        AWS_REGION = 'eu-north-1'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/neerajbalodi/user-management-backend.git'
+            }
+        }
+
+        stage('Build JAR') {
+            steps {
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('Get Backend IP') {
+            steps {
+                script {
+                    env.BACKEND_IP = sh(
+                        script: 'terraform -chdir=/home/ubuntu/terraform output -raw backend_ip',
+                        returnStdout: true
+                    ).trim()
+                    echo "Backend IP: ${env.BACKEND_IP}"
+                }
+            }
+        }
+
+        stage('Copy JAR to Server') {
+            steps {
+                sh """
+                    scp -i /var/lib/jenkins/.ssh/user.pem -o StrictHostKeyChecking=no \
+                        target/*.jar ubuntu@${env.BACKEND_IP}:/tmp/application.jar
+                """
+            }
+        }
+
+        stage('Deploy with Ansible') {
+            steps {
+                sh """
+                    ansible-playbook -i /home/ubuntu/ansible/inventory/hosts \
+                        /home/ubuntu/ansible/playbooks/deploy_backend.yml \
+                        --private-key=/var/lib/jenkins/.ssh/user.pem \
+                        -e "aws_access_key=${AWS_ACCESS_KEY}" \
+                        -e "aws_secret_key=${AWS_SECRET_KEY}" \
+                        -e "aws_s3_bucket=${AWS_S3_BUCKET}" \
+                        -e "aws_s3_region=${AWS_REGION}"
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Deployment successful!"
+        }
+        failure {
+            echo "❌ Deployment failed!"
+        }
+    }
+}
