@@ -6,7 +6,7 @@ pipeline {
     }
 
     environment {
-        SSH_CREDENTIAL = 'ec2-ssh-key'
+        SSH_CREDENTIAL = 'ec2-ssh-key'   // Must match Jenkins credential ID
     }
 
     stages {
@@ -36,7 +36,7 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Build Angular') {
             steps {
                 dir('frontend') {
                     sh 'npm run build'
@@ -44,35 +44,59 @@ pipeline {
             }
         }
 
-        stage('Get Frontend IP') {
+        stage('Get Server IPs') {
             steps {
                 script {
                     env.FRONTEND_IP = sh(
                         script: 'terraform -chdir=infra/terraform output -raw frontend_ip',
                         returnStdout: true
                     ).trim()
+
+                    env.BACKEND_IP = sh(
+                        script: 'terraform -chdir=infra/terraform output -raw backend_ip',
+                        returnStdout: true
+                    ).trim()
+
                     echo "Frontend IP: ${env.FRONTEND_IP}"
+                    echo "Backend IP: ${env.BACKEND_IP}"
                 }
             }
         }
 
         stage('Deploy') {
             steps {
-                sshagent (credentials: [env.SSH_CREDENTIAL]) {
+                sshagent(credentials: ['ec2-ssh-key']) {
                     sh """
-                        # Create temp directory on EC2
+                        # Create temp dir on frontend
                         ssh -o StrictHostKeyChecking=no ubuntu@${env.FRONTEND_IP} \
-                            'sudo mkdir -p /tmp/angular-dist && sudo chown ubuntu:ubuntu /tmp/angular-dist'
+                        "sudo mkdir -p /tmp/angular-dist && sudo chown ubuntu:ubuntu /tmp/angular-dist"
 
-                        # Copy Angular build output
-                        scp -o StrictHostKeyChecking=no \
-                            -r frontend/dist/user-management/* \
-                            ubuntu@${env.FRONTEND_IP}:/tmp/angular-dist/
+                        # Copy Angular build
+                        scp -o StrictHostKeyChecking=no -r \
+                        frontend/dist/user-management/* \
+                        ubuntu@${env.FRONTEND_IP}:/tmp/angular-dist/
 
-                        # Run Ansible deployment
-                        ansible-playbook \
-                            infra/ansible/playbooks/deploy_frontend.yml \
-                            -e "frontend_ip=${env.FRONTEND_IP}"
+                        # ---------- CREATE FULL INVENTORY ----------
+                        echo "[frontend]" > inventory.ini
+                        echo "${env.FRONTEND_IP}" >> inventory.ini
+                        echo "" >> inventory.ini
+
+                        echo "[backend]" >> inventory.ini
+                        echo "${env.BACKEND_IP}" >> inventory.ini
+                        echo "" >> inventory.ini
+
+                        echo "[all:vars]" >> inventory.ini
+                        echo "ansible_user=ubuntu" >> inventory.ini
+                        echo "ansible_ssh_private_key_file=/home/ubuntu/.ssh/project1u.pem" >> inventory.ini
+                        echo "ansible_python_interpreter=/usr/bin/python3" >> inventory.ini
+
+                        echo "====== Generated Inventory ======"
+                        cat inventory.ini
+                        echo "=================================="
+
+                        # Run Ansible
+                        ansible-playbook -i inventory.ini \
+                        infra/ansible/playbooks/deploy_frontend.yml
                     """
                 }
             }
@@ -80,8 +104,10 @@ pipeline {
 
         stage('Health Check') {
             steps {
-                sh 'sleep 5'
-                sh 'curl -f http://${FRONTEND_IP}'
+                sh '''
+                    sleep 5
+                    curl -f http://${FRONTEND_IP}
+                '''
             }
         }
     }
