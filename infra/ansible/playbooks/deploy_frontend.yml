@@ -6,6 +6,7 @@
   vars:
     web_root: /var/www/html
     dist_source: /tmp/angular-dist/browser
+    backend_ip: "{{ groups['backend'][0] }}"
 
   tasks:
     - name: Get backend server IP
