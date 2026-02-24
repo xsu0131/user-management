@@ -1,11 +1,11 @@
 ---
-- name: Configure Backend Server with Java 17
+- name: Configure Backend Server with Java 21
   hosts: backend
   become: yes
   gather_facts: yes
 
   vars:
-    java_version: "17"
+    java_version: "21"
     app_user: "appuser"
     app_dir: "/opt/springboot"
 
@@ -39,7 +39,7 @@
     - name: Set JAVA_HOME environment variable
       lineinfile:
         path: /etc/environment
-        regexp: '^JAVA_HOME='
+        regexp: "^JAVA_HOME="
         line: 'JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"'
         create: yes
 
@@ -47,7 +47,7 @@
       blockinfile:
         path: /etc/profile.d/java.sh
         create: yes
-        mode: '0755'
+        mode: "0755"
         block: |
           export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
           export PATH=$PATH:$JAVA_HOME/bin
@@ -65,7 +65,7 @@
         state: directory
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
-        mode: '0755'
+        mode: "0755"
 
     - name: Create logs directory
       file:
@@ -73,7 +73,7 @@
         state: directory
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
-        mode: '0755'
+        mode: "0755"
 
     - name: Install Maven (optional - for building)
       apt:
@@ -83,7 +83,7 @@
     - name: Create systemd service file for Spring Boot
       copy:
         dest: /etc/systemd/system/springboot-app.service
-        mode: '0644'
+        mode: "0644"
         content: |
           [Unit]
           Description=Spring Boot Application

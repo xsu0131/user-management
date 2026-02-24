@@ -1,0 +1,121 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven3'
+        jdk 'JDK21'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/xsu0131/user-management.git'
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                sh 'terraform -chdir=infra/terraform init'
+            }
+        }
+
+        stage('Build Backend') {
+            steps {
+                dir('backend') {
+                    sh 'mvn clean package -DskipTests'
+                }
+            }
+        }
+
+        stage('Get Backend IP') {
+            steps {
+                script {
+                    env.BACKEND_IP = sh(
+                        script: 'terraform -chdir=infra/terraform output -raw backend_ip',
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+
+        stage('Get Database IP') {
+            steps {
+                script {
+                    env.DB_IP = sh(
+                        script: 'terraform -chdir=infra/terraform output -raw database_ip',
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+
+        stage('Deploy Backend') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key', variable: 'AWS_ACCESS_KEY'),
+                    string(credentialsId: 'aws-secret-key', variable: 'AWS_SECRET_KEY'),
+                    string(credentialsId: 'aws-s3-bucket', variable: 'AWS_S3_BUCKET'),
+                    string(credentialsId: 'aws-s3-region', variable: 'AWS_S3_REGION')
+                ]) {
+                    sshagent(credentials: ['ec2-ssh-key']) {
+                        sh """
+                            scp -o StrictHostKeyChecking=no \
+                            backend/target/*.jar \
+                            ubuntu@${env.BACKEND_IP}:/tmp/application.jar
+
+                            echo "[backend]" > inventory.ini
+                            echo "${env.BACKEND_IP}" >> inventory.ini
+                            echo "" >> inventory.ini
+
+                            echo "[database]" >> inventory.ini
+                            echo "${env.DB_IP}" >> inventory.ini
+                            echo "" >> inventory.ini
+
+                            echo "[all:vars]" >> inventory.ini
+                            echo "ansible_user=ubuntu" >> inventory.ini
+                            echo "ansible_ssh_private_key_file=/home/ubuntu/.ssh/project1u.pem" >> inventory.ini
+                            echo "ansible_python_interpreter=/usr/bin/python3" >> inventory.ini
+                            echo "aws_access_key=$AWS_ACCESS_KEY" >> inventory.ini
+                            echo "aws_secret_key=$AWS_SECRET_KEY" >> inventory.ini
+                            echo "aws_s3_bucket=$AWS_S3_BUCKET" >> inventory.ini
+                            echo "aws_s3_region=$AWS_S3_REGION" >> inventory.ini
+
+                            ansible-playbook -i inventory.ini \
+                            infra/ansible/playbooks/deploy_backend.yml
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                script {
+                    sleep 10
+                    def status = sh(
+                        script: "curl -o /dev/null -s -w \"%{http_code}\" http://${env.BACKEND_IP}:8080/actuator/health",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Health returned HTTP ${status}"
+
+                    if (!(status in ['200','401','403'])) {
+                        error "Application is not reachable"
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Backend deployed successfully!"
+            echo "URL: http://${env.BACKEND_IP}:8080"
+        }
+        failure {
+            echo "Backend deployment failed!"
+        }
+    }
+}
