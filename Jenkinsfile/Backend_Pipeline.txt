@@ -15,8 +15,14 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'main',
+                git branch: 'docker-support',
                     url: 'https://github.com/xsu0131/user-management.git'
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                sh 'terraform -chdir=infra/terraform init -reconfigure'
             }
         }
 
@@ -35,11 +41,13 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh """
-                        docker build -t $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG} backend/
-                        docker tag $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG} \
-                                   $DOCKER_USER/${IMAGE_NAME}:latest
-                    """
+                    dir('backend') {
+                        sh """
+                            docker build -t $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG} .
+                            docker tag $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG} \
+                                       $DOCKER_USER/${IMAGE_NAME}:latest
+                        """
+                    }
                 }
             }
         }
@@ -60,30 +68,78 @@ pipeline {
             }
         }
 
+        stage('Get Infrastructure IPs') {
+            steps {
+                script {
+                    env.BACKEND_IP = sh(
+                        script: 'terraform -chdir=infra/terraform output -raw backend_ip',
+                        returnStdout: true
+                    ).trim()
+
+                    env.DB_IP = sh(
+                        script: 'terraform -chdir=infra/terraform output -raw database_ip',
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+
         stage('Deploy Backend Container') {
             steps {
-                sh """
-                    ansible-playbook \
-                    -i infra/ansible/inventory/hosts \
-                    infra/ansible/playbooks/deploy_backend_docker.yml \
-                    -e image_tag=${IMAGE_TAG}
-                """
+                withCredentials([
+                    string(credentialsId: 'aws-access-key', variable: 'AWS_ACCESS_KEY'),
+                    string(credentialsId: 'aws-secret-key', variable: 'AWS_SECRET_KEY'),
+                    string(credentialsId: 'aws-s3-bucket', variable: 'AWS_S3_BUCKET'),
+                    string(credentialsId: 'aws-s3-region', variable: 'AWS_S3_REGION')
+                ]) {
+
+                    sshagent(credentials: ['ec2-ssh-key']) {
+
+                        script {
+
+                            writeFile file: 'inventory.ini', text: """
+[backend]
+${env.BACKEND_IP}
+
+[database]
+${env.DB_IP}
+
+[all:vars]
+ansible_user=ubuntu
+ansible_ssh_private_key_file=/home/ubuntu/.ssh/project1u.pem
+ansible_python_interpreter=/usr/bin/python3
+aws_access_key=${AWS_ACCESS_KEY}
+aws_secret_key=${AWS_SECRET_KEY}
+aws_s3_bucket=${AWS_S3_BUCKET}
+aws_s3_region=${AWS_S3_REGION}
+"""
+
+                            sh """
+                                ANSIBLE_HOST_KEY_CHECKING=False \
+                                ansible-playbook \
+                                -i inventory.ini \
+                                infra/ansible/playbooks/deploy_backend_docker.yml \
+                                -e image_tag=${IMAGE_TAG}
+                            """
+                        }
+                    }
+                }
             }
         }
 
         stage('Health Check') {
             steps {
                 script {
-                    sleep 10
+                    sleep 20
                     def status = sh(
-                        script: "curl -o /dev/null -s -w \"%{http_code}\" http://\$(terraform -chdir=infra/terraform output -raw backend_ip):8080/actuator/health",
+                        script: "curl -o /dev/null -s -w \"%{http_code}\" http://${env.BACKEND_IP}:8080/actuator/health",
                         returnStdout: true
                     ).trim()
 
-                    echo "Health check returned HTTP ${status}"
+                    echo "Health returned HTTP ${status}"
 
                     if (!(status in ['200','401','403'])) {
-                        error "Backend not reachable"
+                        error "Application is not reachable"
                     }
                 }
             }
@@ -95,10 +151,11 @@ pipeline {
             sh 'docker system prune -f'
         }
         success {
-            echo "✅ Backend deployed successfully"
+            echo "✅ Backend deployed successfully!"
+            echo "URL: http://${env.BACKEND_IP}:8080"
         }
         failure {
-            echo "❌ Backend deployment failed"
+            echo "❌ Backend deployment failed!"
         }
     }
 }

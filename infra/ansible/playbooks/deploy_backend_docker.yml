@@ -4,15 +4,9 @@
   become: yes
 
   vars:
-    image_name: "xsu0131/user-management-backend"
-    image_tag: "{{ image_tag | default('latest') }}"
     database_ip: "{{ groups['database'][0] }}"
 
   tasks:
-    # -----------------------------------
-    # Check if Docker exists
-    # -----------------------------------
-
     - name: Check if Docker is installed
       command: docker --version
       register: docker_check
@@ -23,55 +17,39 @@
         name: docker.io
         state: present
         update_cache: yes
-      when: docker_check.failed
+      when: docker_check.rc != 0
 
     - name: Ensure Docker is running
       service:
         name: docker
         state: started
         enabled: yes
-      when: docker_check.failed
 
-    # -----------------------------------
-    # Pull Image
-    # -----------------------------------
-
-    - name: Pull backend image
-      command: docker pull {{ image_name }}:{{ image_tag }}
-
-    # -----------------------------------
-    # Stop Old Container
-    # -----------------------------------
+    - name: Pull latest backend image
+      shell: docker pull xsu0131/user-management-backend:latest
 
     - name: Stop existing container
-      command: docker stop backend-app
-      ignore_errors: yes
+      shell: docker stop backend-app || true
 
     - name: Remove existing container
-      command: docker rm backend-app
-      ignore_errors: yes
-
-    # -----------------------------------
-    # Run New Container
-    # -----------------------------------
+      shell: docker rm backend-app || true
 
     - name: Run backend container
-      command: >
-        docker run -d
-        --name backend-app
-        --restart always
-        -p 8080:8080
-        -e SPRING_DATASOURCE_URL=jdbc:mysql://{{ database_ip }}:3306/user_management
-        -e SPRING_DATASOURCE_USERNAME=admin
-        -e SPRING_DATASOURCE_PASSWORD=admin
-        -e SPRING_JPA_HIBERNATE_DDL_AUTO=update
-        -e JWT_SECRET=dGhpc0lzQVZlcnlMb25nU2VjcmV0S2V5Rm9ySldUVG9rZW5HZW5lcmF0aW9uMTIzNDU2Nzg5MA==
-        -e JWT_EXPIRATION=86400000
-        {{ image_name }}:{{ image_tag }}
-
-    # -----------------------------------
-    # Wait for Service
-    # -----------------------------------
+      shell: |
+        docker run -d \
+          --name backend-app \
+          --restart always \
+          -p 8080:8080 \
+          -e SPRING_DATASOURCE_URL=jdbc:mysql://{{ database_ip }}:3306/user_management \
+          -e SPRING_DATASOURCE_USERNAME=admin \
+          -e SPRING_DATASOURCE_PASSWORD=admin \
+          -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
+          -e JWT_SECRET=dGhpc0lzQVZlcnlMb25nU2VjcmV0S2V5Rm9ySldUVG9rZW5HZW5lcmF0aW9uMTIzNDU2Nzg5MA== \
+          -e JWT_EXPIRATION=86400000 \
+          -e AWS_ACCESS_KEY={{ aws_access_key }} \
+          -e AWS_SECRET_KEY={{ aws_secret_key }} \
+          -e AWS_S3_REGION={{ aws_s3_region }} \
+          xsu0131/user-management-backend:latest
 
     - name: Wait for container to start
       wait_for:
@@ -80,8 +58,9 @@
         timeout: 60
 
     - name: Show running containers
-      command: docker ps
+      shell: docker ps
       register: docker_ps
 
-    - debug:
-        var: docker_ps.stdout
+    - name: Display container status
+      debug:
+        msg: "{{ docker_ps.stdout }}"
