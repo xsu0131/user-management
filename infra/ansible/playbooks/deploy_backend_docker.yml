@@ -8,7 +8,7 @@
 
   tasks:
     - name: Check if Docker is installed
-      command: docker --version
+      command: which docker
       register: docker_check
       ignore_errors: yes
 
@@ -24,8 +24,9 @@
         name: docker
         state: started
         enabled: yes
+      when: docker_check.rc != 0
 
-    - name: Pull latest backend image
+    - name: Pull backend image
       shell: docker pull xsu0131/user-management-backend:latest
 
     - name: Stop existing container
@@ -49,6 +50,7 @@
           -e AWS_ACCESS_KEY={{ aws_access_key }} \
           -e AWS_SECRET_KEY={{ aws_secret_key }} \
           -e AWS_S3_REGION={{ aws_s3_region }} \
+          -e AWS_S3_BUCKET_NAME={{ aws_s3_bucket }} \
           xsu0131/user-management-backend:latest
 
     - name: Wait for container to start
@@ -58,7 +60,7 @@
         timeout: 60
 
     - name: Show running containers
-      shell: docker ps
+      shell: docker ps | grep backend-app
       register: docker_ps
 
     - name: Display container status
