@@ -5,7 +5,7 @@
   gather_facts: yes
 
   vars:
-    mysql_root_password: "admin" # Change this!
+    mysql_root_password: "admin"
     mysql_database: "user_management"
     mysql_user: "admin"
     mysql_password: "admin"

@@ -23,8 +23,8 @@
           --restart always \
           -p 8080:8080 \
           -e SPRING_DATASOURCE_URL=jdbc:mysql://{{ database_ip }}:3306/user_management \
-          -e SPRING_DATASOURCE_USERNAME=appuser \
-          -e SPRING_DATASOURCE_PASSWORD=apppass \
+          -e SPRING_DATASOURCE_USERNAME=admin \
+          -e SPRING_DATASOURCE_PASSWORD=admin \
           -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
           -e JWT_SECRET=dGhpc0lzQVZlcnlMb25nU2VjcmV0S2V5Rm9ySldUVG9rZW5HZW5lcmF0aW9uMTIzNDU2Nzg5MA== \
           -e JWT_EXPIRATION=86400000 \
