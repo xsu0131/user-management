@@ -1,4 +1,0 @@
-target/*.original
-.git
-.gitignore
-node_modules
