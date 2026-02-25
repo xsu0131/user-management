@@ -5,17 +5,20 @@
 
   vars:
     web_root: /var/www/html
-    dist_source: /tmp/angular-dist/browser
     backend_ip: "{{ groups['backend'][0] }}"
+    dist_path: "../../../frontend/dist"
 
   tasks:
-    - name: Get backend server IP
-      set_fact:
-        backend_server: "{{ backend_ip }}"
+    - name: Detect Angular dist folder
+      find:
+        paths: "{{ dist_path }}"
+        file_type: directory
+        depth: 1
+      register: dist_dirs
 
-    - name: Display backend IP
-      debug:
-        msg: "Backend server: {{ backend_server }}"
+    - name: Set Angular dist directory
+      set_fact:
+        angular_dist: "{{ dist_dirs.files[0].path }}/browser"
 
     - name: Remove existing web root
       file:
@@ -30,28 +33,13 @@
         group: www-data
         mode: "0755"
 
-    - name: Copy Angular files
+    - name: Copy Angular files from Jenkins to frontend server
       copy:
-        src: "{{ dist_source }}/"
+        src: "{{ angular_dist }}/"
         dest: "{{ web_root }}/"
         owner: www-data
         group: www-data
         mode: "0755"
-        remote_src: yes
-
-    - name: Set correct permissions
-      file:
-        path: "{{ web_root }}"
-        owner: www-data
-        group: www-data
-        mode: "0755"
-        recurse: yes
-
-    - name: Remove default nginx config
-      file:
-        path: /etc/nginx/sites-enabled/default
-        state: absent
-      notify: Reload Nginx
 
     - name: Configure Nginx with API proxy
       copy:
@@ -65,7 +53,7 @@
               index index.html;
 
               location /api/ {
-                  proxy_pass http://{{ backend_server }}:8080;
+                  proxy_pass http://{{ backend_ip }}:8080;
                   proxy_http_version 1.1;
                   proxy_set_header Upgrade $http_upgrade;
                   proxy_set_header Connection 'upgrade';
@@ -79,25 +67,20 @@
                   try_files $uri $uri/ /index.html;
               }
           }
-      notify: Reload Nginx
 
     - name: Enable site
       file:
         src: /etc/nginx/sites-available/angular-app
         dest: /etc/nginx/sites-enabled/angular-app
         state: link
-      notify: Reload Nginx
+        force: yes
 
-    - name: Test Nginx config
-      command: nginx -t
+    - name: Remove default nginx site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
 
-    - name: Restart Nginx
+    - name: Restart nginx
       systemd:
         name: nginx
         state: restarted
-
-  handlers:
-    - name: Reload Nginx
-      systemd:
-        name: nginx
-        state: reloaded
