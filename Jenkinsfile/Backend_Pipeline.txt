@@ -7,7 +7,7 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME = "user-management-backend"
+        IMAGE_NAME = "xsu0131/user-management-backend"
         IMAGE_TAG  = "${BUILD_NUMBER}"
     }
 
@@ -26,7 +26,7 @@ pipeline {
             }
         }
 
-        stage('Build Backend (Maven)') {
+        stage('Build Backend JAR') {
             steps {
                 dir('backend') {
                     sh 'mvn clean package -DskipTests'
@@ -36,33 +36,28 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-credentials',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    dir('backend') {
-                        sh """
-                            docker build -t $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG} .
-                            docker tag $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG} \
-                                       $DOCKER_USER/${IMAGE_NAME}:latest
-                        """
-                    }
+                dir('backend') {
+                    sh """
+                        docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+                    """
                 }
             }
         }
 
         stage('Docker Push') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-credentials',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
                     sh """
-                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        docker push $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG}
-                        docker push $DOCKER_USER/${IMAGE_NAME}:latest
+                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                        docker push ${IMAGE_NAME}:latest
                     """
                 }
             }
@@ -131,6 +126,7 @@ aws_s3_region=${AWS_S3_REGION}
             steps {
                 script {
                     sleep 20
+
                     def status = sh(
                         script: "curl -o /dev/null -s -w \"%{http_code}\" http://${env.BACKEND_IP}:8080/actuator/health",
                         returnStdout: true
@@ -147,15 +143,15 @@ aws_s3_region=${AWS_S3_REGION}
     }
 
     post {
-        always {
-            sh 'docker system prune -f'
-        }
         success {
             echo "✅ Backend deployed successfully!"
             echo "URL: http://${env.BACKEND_IP}:8080"
         }
         failure {
             echo "❌ Backend deployment failed!"
+        }
+        always {
+            sh 'docker system prune -f'
         }
     }
 }
