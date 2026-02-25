@@ -7,13 +7,8 @@
     database_ip: "{{ groups['database'][0] }}"
 
   tasks:
-    - name: Login to Docker Hub
-      shell: |
-        docker login -u {{ dockerhub_username }} -p {{ dockerhub_password }}
-      no_log: false
-
     - name: Pull latest image
-      shell: docker pull {{ dockerhub_username }}/{{ image_name }}:{{ image_tag }}
+      shell: docker pull xsu0131/user-management-backend:latest
 
     - name: Stop existing container
       shell: docker stop backend-app || true
@@ -27,19 +22,13 @@
           --name backend-app \
           --restart always \
           -p 8080:8080 \
-          -e SPRING_DATASOURCE_URL=jdbc:mysql://{{ database_ip }}:3306/users \
-          -e SPRING_DATASOURCE_USERNAME=admin \
-          -e SPRING_DATASOURCE_PASSWORD=admin \
+          -e SPRING_DATASOURCE_URL=jdbc:mysql://{{ database_ip }}:3306/user_management \
+          -e SPRING_DATASOURCE_USERNAME=appuser \
+          -e SPRING_DATASOURCE_PASSWORD=apppass \
           -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
-          -e SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.MySQL8Dialect \
           -e JWT_SECRET=dGhpc0lzQVZlcnlMb25nU2VjcmV0S2V5Rm9ySldUVG9rZW5HZW5lcmF0aW9uMTIzNDU2Nzg5MA== \
           -e JWT_EXPIRATION=86400000 \
-          -e AWS_ACCESS_KEY={{ aws_access_key }} \
-          -e AWS_SECRET_KEY={{ aws_secret_key }} \
-          -e AWS_S3_BUCKET={{ aws_s3_bucket }} \
-          -e AWS_S3_REGION=ca-central-1 \
-          -e CORS_ALLOWED_ORIGINS=http://localhost:4200 \
-          {{ dockerhub_username }}/{{ image_name }}:{{ image_tag }}
+          xsu0131/user-management-backend:latest
 
     - name: Wait for container to start
       wait_for:

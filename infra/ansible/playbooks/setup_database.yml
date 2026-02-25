@@ -5,10 +5,10 @@
   gather_facts: yes
 
   vars:
-    mysql_root_password: "admin"  # Change this!
-    mysql_database: "users"
+    mysql_root_password: "admin" # Change this!
+    mysql_database: "user_management"
     mysql_user: "admin"
-    mysql_password: "admin"  # Change this!
+    mysql_password: "admin"
 
   tasks:
     - name: Display server information
@@ -44,8 +44,8 @@
     - name: Configure MySQL to listen on all interfaces
       lineinfile:
         path: /etc/mysql/mysql.conf.d/mysqld.cnf
-        regexp: '^bind-address'
-        line: 'bind-address = 0.0.0.0'
+        regexp: "^bind-address"
+        line: "bind-address = 0.0.0.0"
         backup: yes
       notify: Restart MySQL
 
@@ -78,7 +78,7 @@
 
     - name: Remove anonymous MySQL users
       mysql_user:
-        name: ''
+        name: ""
         host_all: yes
         state: absent
         login_user: root
@@ -97,12 +97,12 @@
       file:
         path: /var/backups/mysql
         state: directory
-        mode: '0700'
+        mode: "0700"
 
     - name: Create MySQL backup script
       copy:
         dest: /usr/local/bin/mysql-backup.sh
-        mode: '0755'
+        mode: "0755"
         content: |
           #!/bin/bash
           BACKUP_DIR="/var/backups/mysql"
