@@ -4,31 +4,76 @@
   become: yes
 
   vars:
+    image_name: "xsu0131/user-management-backend"
+    image_tag: "{{ image_tag | default('latest') }}"
     database_ip: "{{ groups['database'][0] }}"
 
   tasks:
-    - name: Pull latest image
-      shell: docker pull xsu0131/user-management-backend:latest
+    # -----------------------------------
+    # Install Docker (idempotent)
+    # -----------------------------------
+
+    - name: Install Docker dependencies
+      apt:
+        name:
+          - docker.io
+        state: present
+        update_cache: yes
+
+    - name: Ensure Docker is running
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    # -----------------------------------
+    # Pull Image
+    # -----------------------------------
+
+    - name: Pull backend image
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        tag: "{{ image_tag }}"
+        source: pull
+
+    # -----------------------------------
+    # Stop & Remove Old Container
+    # -----------------------------------
 
     - name: Stop existing container
-      shell: docker stop backend-app || true
+      community.docker.docker_container:
+        name: backend-app
+        state: stopped
+      ignore_errors: yes
 
     - name: Remove existing container
-      shell: docker rm backend-app || true
+      community.docker.docker_container:
+        name: backend-app
+        state: absent
+      ignore_errors: yes
 
-    - name: Run new container
-      shell: |
-        docker run -d \
-          --name backend-app \
-          --restart always \
-          -p 8080:8080 \
-          -e SPRING_DATASOURCE_URL=jdbc:mysql://{{ database_ip }}:3306/user_management \
-          -e SPRING_DATASOURCE_USERNAME=admin \
-          -e SPRING_DATASOURCE_PASSWORD=admin \
-          -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
-          -e JWT_SECRET=dGhpc0lzQVZlcnlMb25nU2VjcmV0S2V5Rm9ySldUVG9rZW5HZW5lcmF0aW9uMTIzNDU2Nzg5MA== \
-          -e JWT_EXPIRATION=86400000 \
-          xsu0131/user-management-backend:latest
+    # -----------------------------------
+    # Run New Container
+    # -----------------------------------
+
+    - name: Run backend container
+      community.docker.docker_container:
+        name: backend-app
+        image: "{{ image_name }}:{{ image_tag }}"
+        restart_policy: always
+        published_ports:
+          - "8080:8080"
+        env:
+          SPRING_DATASOURCE_URL: "jdbc:mysql://{{ database_ip }}:3306/user_management"
+          SPRING_DATASOURCE_USERNAME: "admin"
+          SPRING_DATASOURCE_PASSWORD: "admin"
+          SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+          JWT_SECRET: "dGhpc0lzQVZlcnlMb25nU2VjcmV0S2V5Rm9ySldUVG9rZW5HZW5lcmF0aW9uMTIzNDU2Nzg5MA=="
+          JWT_EXPIRATION: "86400000"
+
+    # -----------------------------------
+    # Wait for Service
+    # -----------------------------------
 
     - name: Wait for container to start
       wait_for:
@@ -36,10 +81,9 @@
         delay: 10
         timeout: 60
 
-    - name: Check container status
-      shell: docker ps | grep backend-app
-      register: container_status
+    - name: Display running containers
+      command: docker ps
+      register: docker_ps
 
-    - name: Display status
-      debug:
-        msg: "{{ container_status.stdout }}"
+    - debug:
+        var: docker_ps.stdout
