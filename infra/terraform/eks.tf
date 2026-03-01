@@ -1,7 +1,7 @@
 # Provider and Terraform configuration
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -24,7 +24,7 @@ variable "environment" {
 variable "aws_region" {
   description = "AWS region"
   type        = string
-  default     = "eu-north-1"
+  default     = "us-west-2"
 }
 
 variable "cluster_version" {
@@ -51,17 +51,17 @@ module "vpc" {
 
   tags = {
     "kubernetes.io/cluster/${var.environment}-eks-cluster" = "shared"
-    Environment = var.environment
+    Environment                                            = var.environment
   }
 
   public_subnet_tags = {
     "kubernetes.io/cluster/${var.environment}-eks-cluster" = "shared"
-    "kubernetes.io/role/elb" = "1"
+    "kubernetes.io/role/elb"                               = "1"
   }
 
   private_subnet_tags = {
     "kubernetes.io/cluster/${var.environment}-eks-cluster" = "shared"
-    "kubernetes.io/role/internal-elb" = "1"
+    "kubernetes.io/role/internal-elb"                      = "1"
   }
 }
 

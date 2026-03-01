@@ -1,10 +1,10 @@
-piVersion: v1
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: backend-config
   namespace: production
 data:
-  SPRING_DATASOURCE_URL: "jdbc:mysql://${database_ip}:3306/users"
+  SPRING_DATASOURCE_URL: "jdbc:mysql://${database_ip}:3306/user_management"
   SPRING_DATASOURCE_USERNAME: "admin"
   SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
   SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: "org.hibernate.dialect.MySQL8Dialect"
